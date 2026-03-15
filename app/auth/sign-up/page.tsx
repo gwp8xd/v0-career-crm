@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
@@ -8,6 +8,39 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Check, X } from "lucide-react"
+
+type PasswordStrength = "weak" | "fair" | "good" | "strong"
+
+function getPasswordStrength(password: string): {
+  strength: PasswordStrength
+  score: number
+  checks: { label: string; passed: boolean }[]
+} {
+  const checks = [
+    { label: "At least 8 characters", passed: password.length >= 8 },
+    { label: "Contains lowercase letter", passed: /[a-z]/.test(password) },
+    { label: "Contains uppercase letter", passed: /[A-Z]/.test(password) },
+    { label: "Contains number", passed: /[0-9]/.test(password) },
+    { label: "Contains special character", passed: /[^A-Za-z0-9]/.test(password) },
+  ]
+
+  const score = checks.filter((c) => c.passed).length
+
+  let strength: PasswordStrength = "weak"
+  if (score >= 5) strength = "strong"
+  else if (score >= 4) strength = "good"
+  else if (score >= 3) strength = "fair"
+
+  return { strength, score, checks }
+}
+
+const strengthConfig: Record<PasswordStrength, { color: string; bg: string; label: string }> = {
+  weak: { color: "bg-red-500", bg: "bg-red-500/20", label: "Weak" },
+  fair: { color: "bg-orange-500", bg: "bg-orange-500/20", label: "Fair" },
+  good: { color: "bg-yellow-500", bg: "bg-yellow-500/20", label: "Good" },
+  strong: { color: "bg-green-500", bg: "bg-green-500/20", label: "Strong" },
+}
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -15,6 +48,8 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  const passwordAnalysis = useMemo(() => getPasswordStrength(password), [password])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,12 +106,54 @@ export default function SignUpPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Create a password (min 6 characters)"
+                placeholder="Create a password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
+                minLength={8}
                 required
               />
+              {password.length > 0 && (
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex gap-1">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 flex-1 rounded-full transition-colors ${
+                            i < passwordAnalysis.score
+                              ? strengthConfig[passwordAnalysis.strength].color
+                              : "bg-muted"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded ${
+                        strengthConfig[passwordAnalysis.strength].bg
+                      }`}
+                    >
+                      {strengthConfig[passwordAnalysis.strength].label}
+                    </span>
+                  </div>
+                  <ul className="space-y-1">
+                    {passwordAnalysis.checks.map((check) => (
+                      <li
+                        key={check.label}
+                        className={`flex items-center gap-2 text-xs ${
+                          check.passed ? "text-green-600" : "text-muted-foreground"
+                        }`}
+                      >
+                        {check.passed ? (
+                          <Check className="h-3 w-3" />
+                        ) : (
+                          <X className="h-3 w-3" />
+                        )}
+                        {check.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating account..." : "Sign up"}
