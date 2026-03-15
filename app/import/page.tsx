@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useContactStore } from "@/lib/store"
-import { Contact, Priority, Status } from "@/lib/data"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -27,11 +26,25 @@ interface ParsedContact {
 
 export default function ImportPage() {
   const router = useRouter()
-  const { importContacts } = useContactStore()
+  const supabase = createClient()
+  const [userId, setUserId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [parsedContacts, setParsedContacts] = useState<ParsedContact[]>([])
   const [importSuccess, setImportSuccess] = useState(false)
   const [fileName, setFileName] = useState("")
+  const [importing, setImporting] = useState(false)
+
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/auth/login")
+        return
+      }
+      setUserId(user.id)
+    }
+    checkAuth()
+  }, [])
 
   const parseCSV = (text: string): ParsedContact[] => {
     const lines = text.split("\n").filter((line) => line.trim())
@@ -96,23 +109,34 @@ export default function ImportPage() {
     if (file) handleFile(file)
   }
 
-  const handleImport = () => {
-    const contactsToImport: Omit<Contact, "id" | "activities">[] =
-      parsedContacts.map((pc) => ({
-        name: pc.name,
-        email: pc.email,
-        company: pc.company,
-        title: pc.title,
-        linkedinUrl: "",
-        notes: `Imported from LinkedIn. Connected on: ${pc.connectedOn || "Unknown"}`,
-        priority: "medium" as Priority,
-        status: "to-reach-out" as Status,
-        lastContact: null,
-        nextFollowUp: null,
-      }))
+  const handleImport = async () => {
+    if (!userId) return
+    setImporting(true)
 
-    importContacts(contactsToImport)
+    const contactsToImport = parsedContacts.map((pc) => ({
+      user_id: userId,
+      name: pc.name,
+      email: pc.email || null,
+      company: pc.company || null,
+      title: pc.title || null,
+      linkedin_url: null,
+      notes: `Imported from LinkedIn. Connected on: ${pc.connectedOn || "Unknown"}`,
+      priority: "medium",
+      status: "to_reach_out",
+      last_contacted: null,
+      next_follow_up: null,
+    }))
+
+    const { error } = await supabase.from("contacts").insert(contactsToImport)
+
+    if (error) {
+      alert("Failed to import contacts: " + error.message)
+      setImporting(false)
+      return
+    }
+
     setImportSuccess(true)
+    setImporting(false)
   }
 
   if (importSuccess) {
@@ -224,8 +248,8 @@ export default function ImportPage() {
                   {fileName} • {parsedContacts.length} contacts found
                 </p>
               </div>
-              <Button onClick={handleImport}>
-                Import {parsedContacts.length} Contacts
+              <Button onClick={handleImport} disabled={importing}>
+                {importing ? "Importing..." : `Import ${parsedContacts.length} Contacts`}
               </Button>
             </div>
 

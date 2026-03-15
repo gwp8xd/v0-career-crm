@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, use } from "react"
+import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useContactStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
+import { Contact } from "@/lib/data"
 import { ContactModal } from "@/components/contact-modal"
 import { PriorityBadge } from "@/components/priority-badge"
 import { StatusBadge } from "@/components/status-badge"
@@ -29,11 +30,143 @@ interface ContactDetailPageProps {
 export default function ContactDetailPage({ params }: ContactDetailPageProps) {
   const { id } = use(params)
   const router = useRouter()
-  const { contacts, updateContact, addActivity } = useContactStore()
-  const contact = contacts.find((c) => c.id === id)
-
+  const supabase = createClient()
+  
+  const [contact, setContact] = useState<Contact | null>(null)
+  const [loading, setLoading] = useState(true)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [newNote, setNewNote] = useState("")
+
+  useEffect(() => {
+    async function fetchContact() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/auth/login")
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("*, activities(*)")
+        .eq("id", id)
+        .single()
+
+      if (error || !data) {
+        setContact(null)
+      } else {
+        setContact({
+          id: data.id,
+          name: data.name,
+          email: data.email || "",
+          company: data.company || "",
+          title: data.title || "",
+          linkedinUrl: data.linkedin_url || "",
+          notes: data.notes || "",
+          priority: data.priority as Contact["priority"],
+          status: data.status as Contact["status"],
+          lastContacted: data.last_contacted,
+          nextFollowUp: data.next_follow_up,
+          activities: (data.activities || []).map((a: { id: string; note: string; created_at: string }) => ({
+            id: a.id,
+            date: a.created_at.split("T")[0],
+            note: a.note,
+          })),
+        })
+      }
+      setLoading(false)
+    }
+    fetchContact()
+  }, [id])
+
+  const formatDate = (date: string | null) => {
+    if (!date) return "Not set"
+    const [year, month, day] = date.split("-").map(Number)
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    return `${months[month - 1]} ${day}, ${year}`
+  }
+
+  const handleMarkReachedOut = async () => {
+    if (!contact) return
+    const today = new Date().toISOString().split("T")[0]
+    
+    await supabase
+      .from("contacts")
+      .update({
+        status: "reached_out",
+        last_contacted: today,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", contact.id)
+
+    await supabase.from("activities").insert({
+      contact_id: contact.id,
+      note: "Marked as reached out",
+    })
+
+    setContact({
+      ...contact,
+      status: "reached_out",
+      lastContacted: today,
+      activities: [
+        { id: crypto.randomUUID(), date: today, note: "Marked as reached out" },
+        ...contact.activities,
+      ],
+    })
+  }
+
+  const handleAddNote = async () => {
+    if (!contact || !newNote.trim()) return
+    const today = new Date().toISOString().split("T")[0]
+
+    const { data } = await supabase
+      .from("activities")
+      .insert({
+        contact_id: contact.id,
+        note: newNote.trim(),
+      })
+      .select()
+      .single()
+
+    if (data) {
+      setContact({
+        ...contact,
+        activities: [
+          { id: data.id, date: today, note: newNote.trim() },
+          ...contact.activities,
+        ],
+      })
+    }
+    setNewNote("")
+  }
+
+  const handleSaveContact = async (updated: Contact) => {
+    await supabase
+      .from("contacts")
+      .update({
+        name: updated.name,
+        email: updated.email || null,
+        company: updated.company || null,
+        title: updated.title || null,
+        linkedin_url: updated.linkedinUrl || null,
+        notes: updated.notes || null,
+        priority: updated.priority,
+        status: updated.status,
+        last_contacted: updated.lastContacted || null,
+        next_follow_up: updated.nextFollowUp || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", updated.id)
+
+    setContact(updated)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
 
   if (!contact) {
     return (
@@ -53,29 +186,6 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
         </div>
       </div>
     )
-  }
-
-  const formatDate = (date: string | null) => {
-    if (!date) return "Not set"
-    // Parse date string directly to avoid timezone issues
-    const [year, month, day] = date.split("-").map(Number)
-    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    return `${months[month - 1]} ${day}, ${year}`
-  }
-
-  const handleMarkReachedOut = () => {
-    updateContact(contact.id, {
-      status: "reached-out",
-      lastContact: new Date().toISOString().split("T")[0],
-    })
-    addActivity(contact.id, "Marked as reached out")
-  }
-
-  const handleAddNote = () => {
-    if (newNote.trim()) {
-      addActivity(contact.id, newNote.trim())
-      setNewNote("")
-    }
   }
 
   return (
@@ -105,7 +215,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
               <Pencil className="mr-2 h-4 w-4" />
               Edit Contact
             </Button>
-            {contact.status !== "reached-out" && contact.status !== "done" && (
+            {contact.status !== "reached_out" && contact.status !== "done" && (
               <Button onClick={handleMarkReachedOut}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Mark Reached Out
@@ -241,7 +351,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
                   <div>
                     <p className="text-muted-foreground">Last Contact</p>
                     <p className="font-medium">
-                      {formatDate(contact.lastContact)}
+                      {formatDate(contact.lastContacted)}
                     </p>
                   </div>
                 </div>
@@ -263,7 +373,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
           open={editModalOpen}
           onOpenChange={setEditModalOpen}
           contact={contact}
-          onSave={(updated) => updateContact(contact.id, updated)}
+          onSave={handleSaveContact}
         />
       </div>
     </div>

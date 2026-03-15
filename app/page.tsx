@@ -1,31 +1,110 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useContactStore } from "@/lib/store"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 import { Contact } from "@/lib/data"
 import { ContactsTable } from "@/components/contacts-table"
 import { ContactModal } from "@/components/contact-modal"
 import { Button } from "@/components/ui/button"
-import { Plus, Upload } from "lucide-react"
+import { Plus, Upload, LogOut } from "lucide-react"
+import type { User } from "@supabase/supabase-js"
 
 export default function HomePage() {
-  const { contacts, addContact, updateContact } = useContactStore()
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
+  const router = useRouter()
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/auth/login")
+        return
+      }
+      setUser(user)
+      await fetchContacts()
+      setLoading(false)
+    }
+    init()
+  }, [])
+
+  const fetchContacts = async () => {
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("*, activities(*)")
+      .order("created_at", { ascending: false })
+
+    if (!error && data) {
+      const mappedContacts: Contact[] = data.map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email || "",
+        company: c.company || "",
+        title: c.title || "",
+        linkedinUrl: c.linkedin_url || "",
+        notes: c.notes || "",
+        priority: c.priority as Contact["priority"],
+        status: c.status as Contact["status"],
+        lastContacted: c.last_contacted,
+        nextFollowUp: c.next_follow_up,
+        activities: (c.activities || []).map((a: { id: string; note: string; created_at: string }) => ({
+          id: a.id,
+          date: a.created_at.split("T")[0],
+          note: a.note,
+        })),
+      }))
+      setContacts(mappedContacts)
+    }
+  }
 
   const handleEditContact = (contact: Contact) => {
     setEditingContact(contact)
     setModalOpen(true)
   }
 
-  const handleSaveContact = (contact: Contact) => {
+  const handleSaveContact = async (contact: Contact) => {
     if (editingContact) {
-      updateContact(contact.id, contact)
+      // Update existing contact
+      await supabase
+        .from("contacts")
+        .update({
+          name: contact.name,
+          email: contact.email || null,
+          company: contact.company || null,
+          title: contact.title || null,
+          linkedin_url: contact.linkedinUrl || null,
+          notes: contact.notes || null,
+          priority: contact.priority,
+          status: contact.status,
+          last_contacted: contact.lastContacted || null,
+          next_follow_up: contact.nextFollowUp || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", contact.id)
     } else {
-      addContact(contact)
+      // Create new contact
+      await supabase.from("contacts").insert({
+        user_id: user?.id,
+        name: contact.name,
+        email: contact.email || null,
+        company: contact.company || null,
+        title: contact.title || null,
+        linkedin_url: contact.linkedinUrl || null,
+        notes: contact.notes || null,
+        priority: contact.priority,
+        status: contact.status,
+        last_contacted: contact.lastContacted || null,
+        next_follow_up: contact.nextFollowUp || null,
+      })
     }
     setEditingContact(null)
+    await fetchContacts()
   }
 
   const handleCloseModal = (open: boolean) => {
@@ -33,6 +112,19 @@ export default function HomePage() {
     if (!open) {
       setEditingContact(null)
     }
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/auth/login")
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    )
   }
 
   return (
@@ -49,10 +141,14 @@ export default function HomePage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">{user?.email}</span>
+              <Button variant="ghost" size="icon" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4" />
+              </Button>
               <Button variant="outline" asChild>
                 <Link href="/import">
                   <Upload className="mr-2 h-4 w-4" />
-                  Import LinkedIn CSV
+                  Import CSV
                 </Link>
               </Button>
               <Button onClick={() => setModalOpen(true)}>
