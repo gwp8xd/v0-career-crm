@@ -5,7 +5,7 @@ import { Contact, sampleContacts } from "./data"
 
 interface ContactStore {
   contacts: Contact[]
-  addContact: (contact: Omit<Contact, "id" | "activities">) => void
+  addContact: (contact: Contact) => void
   updateContact: (id: string, updates: Partial<Contact>) => void
   deleteContact: (id: string) => void
   addActivity: (contactId: string, note: string) => void
@@ -16,14 +16,7 @@ export const useContactStore = create<ContactStore>((set) => ({
   contacts: sampleContacts,
   addContact: (contact) =>
     set((state) => ({
-      contacts: [
-        ...state.contacts,
-        {
-          ...contact,
-          id: Math.random().toString(36).substring(7),
-          activities: [],
-        },
-      ],
+      contacts: [...state.contacts, contact],
     })),
   updateContact: (id, updates) =>
     set((state) => ({

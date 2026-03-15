@@ -3,14 +3,37 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useContactStore } from "@/lib/store"
+import { Contact } from "@/lib/data"
 import { ContactsTable } from "@/components/contacts-table"
 import { ContactModal } from "@/components/contact-modal"
 import { Button } from "@/components/ui/button"
 import { Plus, Upload } from "lucide-react"
 
 export default function HomePage() {
-  const { contacts, addContact } = useContactStore()
+  const { contacts, addContact, updateContact } = useContactStore()
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingContact, setEditingContact] = useState<Contact | null>(null)
+
+  const handleEditContact = (contact: Contact) => {
+    setEditingContact(contact)
+    setModalOpen(true)
+  }
+
+  const handleSaveContact = (contact: Contact) => {
+    if (editingContact) {
+      updateContact(contact.id, contact)
+    } else {
+      addContact(contact)
+    }
+    setEditingContact(null)
+  }
+
+  const handleCloseModal = (open: boolean) => {
+    setModalOpen(open)
+    if (!open) {
+      setEditingContact(null)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -40,12 +63,13 @@ export default function HomePage() {
           </div>
         </header>
 
-        <ContactsTable contacts={contacts} />
+        <ContactsTable contacts={contacts} onEditContact={handleEditContact} />
 
         <ContactModal
           open={modalOpen}
-          onOpenChange={setModalOpen}
-          onSave={addContact}
+          onOpenChange={handleCloseModal}
+          onSave={handleSaveContact}
+          contact={editingContact}
         />
       </div>
     </div>

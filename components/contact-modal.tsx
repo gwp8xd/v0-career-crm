@@ -24,7 +24,7 @@ interface ContactModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   contact?: Contact | null
-  onSave: (contact: Omit<Contact, "id" | "activities">) => void
+  onSave: (contact: Contact) => void
 }
 
 const emptyContact: Omit<Contact, "id" | "activities"> = {
@@ -61,7 +61,12 @@ export function ContactModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave(formData)
+    const contactToSave: Contact = {
+      id: contact?.id || crypto.randomUUID(),
+      activities: contact?.activities || [],
+      ...formData,
+    }
+    onSave(contactToSave)
     onOpenChange(false)
   }
 
