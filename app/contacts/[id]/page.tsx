@@ -57,11 +57,10 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
 
   const formatDate = (date: string | null) => {
     if (!date) return "Not set"
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    })
+    // Parse date string directly to avoid timezone issues
+    const [year, month, day] = date.split("-").map(Number)
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    return `${months[month - 1]} ${day}, ${year}`
   }
 
   const handleMarkReachedOut = () => {

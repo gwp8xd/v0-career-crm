@@ -51,11 +51,10 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
 
   const formatDate = (date: string | null) => {
     if (!date) return "—"
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
+    // Parse date string directly to avoid timezone issues
+    const [year, month, day] = date.split("-").map(Number)
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return `${months[month - 1]} ${day}, ${year}`
   }
 
   return (
