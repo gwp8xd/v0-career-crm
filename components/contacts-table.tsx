@@ -5,6 +5,7 @@ import { Contact, Priority, Status, priorityLabels, statusLabels } from "@/lib/d
 import { PriorityBadge } from "./priority-badge"
 import { StatusBadge } from "./status-badge"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -20,17 +21,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Search } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Search, Trash2 } from "lucide-react"
 
 interface ContactsTableProps {
   contacts: Contact[]
   onEditContact?: (contact: Contact) => void
+  onDeleteContact?: (contactId: string) => void
 }
 
-export function ContactsTable({ contacts, onEditContact }: ContactsTableProps) {
+export function ContactsTable({ contacts, onEditContact, onDeleteContact }: ContactsTableProps) {
   const [search, setSearch] = useState("")
   const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all")
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all")
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
   const filteredContacts = useMemo(() => {
     return contacts.filter((contact) => {
@@ -114,13 +127,14 @@ export function ContactsTable({ contacts, onEditContact }: ContactsTableProps) {
               <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="font-semibold">Last Contact</TableHead>
               <TableHead className="font-semibold">Next Follow-Up</TableHead>
+              {onDeleteContact && <TableHead className="w-10" />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredContacts.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={onDeleteContact ? 8 : 7}
                   className="h-24 text-center text-muted-foreground"
                 >
                   No contacts found.
@@ -154,12 +168,49 @@ export function ContactsTable({ contacts, onEditContact }: ContactsTableProps) {
                   <TableCell className="text-muted-foreground">
                     {formatDate(contact.nextFollowUp)}
                   </TableCell>
+                  {onDeleteContact && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteTargetId(contact.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete contact?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the contact and all their activity history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTargetId) {
+                  onDeleteContact?.(deleteTargetId)
+                  setDeleteTargetId(null)
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

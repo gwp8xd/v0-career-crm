@@ -10,6 +10,7 @@ import { ContactModal } from "@/components/contact-modal"
 import { Button } from "@/components/ui/button"
 import { Plus, Upload, LogOut } from "lucide-react"
 import type { User } from "@supabase/supabase-js"
+import { useToast } from "@/hooks/use-toast"
 
 export default function HomePage() {
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -19,6 +20,7 @@ export default function HomePage() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const router = useRouter()
   const supabase = createClient()
+  const { toast } = useToast()
 
   useEffect(() => {
     async function init() {
@@ -40,7 +42,11 @@ export default function HomePage() {
       .select("*, activities(*)")
       .order("created_at", { ascending: false })
 
-    if (!error && data) {
+    if (error) {
+      toast({ title: "Failed to load contacts", description: error.message, variant: "destructive" })
+      return
+    }
+    if (data) {
       const mappedContacts: Contact[] = data.map((c) => ({
         id: c.id,
         name: c.name,
@@ -51,7 +57,7 @@ export default function HomePage() {
         notes: c.notes || "",
         priority: c.priority as Contact["priority"],
         status: c.status as Contact["status"],
-        lastContacted: c.last_contacted,
+        lastContact: c.last_contacted,
         nextFollowUp: c.next_follow_up,
         activities: (c.activities || []).map((a: { id: string; note: string; created_at: string }) => ({
           id: a.id,
@@ -70,8 +76,7 @@ export default function HomePage() {
 
   const handleSaveContact = async (contact: Contact) => {
     if (editingContact) {
-      // Update existing contact
-      await supabase
+      const { error } = await supabase
         .from("contacts")
         .update({
           name: contact.name,
@@ -82,14 +87,17 @@ export default function HomePage() {
           notes: contact.notes || null,
           priority: contact.priority,
           status: contact.status,
-          last_contacted: contact.lastContacted || null,
+          last_contacted: contact.lastContact || null,
           next_follow_up: contact.nextFollowUp || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", contact.id)
+      if (error) {
+        toast({ title: "Failed to update contact", description: error.message, variant: "destructive" })
+        return
+      }
     } else {
-      // Create new contact
-      await supabase.from("contacts").insert({
+      const { error } = await supabase.from("contacts").insert({
         user_id: user?.id,
         name: contact.name,
         email: contact.email || null,
@@ -99,12 +107,21 @@ export default function HomePage() {
         notes: contact.notes || null,
         priority: contact.priority,
         status: contact.status,
-        last_contacted: contact.lastContacted || null,
+        last_contacted: contact.lastContact || null,
         next_follow_up: contact.nextFollowUp || null,
       })
+      if (error) {
+        toast({ title: "Failed to add contact", description: error.message, variant: "destructive" })
+        return
+      }
     }
     setEditingContact(null)
     await fetchContacts()
+  }
+
+  const handleDeleteContact = async (contactId: string) => {
+    await supabase.from("contacts").delete().eq("id", contactId)
+    setContacts((prev) => prev.filter((c) => c.id !== contactId))
   }
 
   const handleCloseModal = (open: boolean) => {
@@ -159,7 +176,7 @@ export default function HomePage() {
           </div>
         </header>
 
-        <ContactsTable contacts={contacts} onEditContact={handleEditContact} />
+        <ContactsTable contacts={contacts} onEditContact={handleEditContact} onDeleteContact={handleDeleteContact} />
 
         <ContactModal
           open={modalOpen}

@@ -64,7 +64,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
           notes: data.notes || "",
           priority: data.priority as Contact["priority"],
           status: data.status as Contact["status"],
-          lastContacted: data.last_contacted,
+          lastContact: data.last_contacted,
           nextFollowUp: data.next_follow_up,
           activities: (data.activities || []).map((a: { id: string; note: string; created_at: string }) => ({
             id: a.id,
@@ -92,7 +92,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
     await supabase
       .from("contacts")
       .update({
-        status: "reached_out",
+        status: "reached-out",
         last_contacted: today,
         updated_at: new Date().toISOString(),
       })
@@ -105,8 +105,8 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
 
     setContact({
       ...contact,
-      status: "reached_out",
-      lastContacted: today,
+      status: "reached-out",
+      lastContact: today,
       activities: [
         { id: crypto.randomUUID(), date: today, note: "Marked as reached out" },
         ...contact.activities,
@@ -151,7 +151,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
         notes: updated.notes || null,
         priority: updated.priority,
         status: updated.status,
-        last_contacted: updated.lastContacted || null,
+        last_contacted: updated.lastContact || null,
         next_follow_up: updated.nextFollowUp || null,
         updated_at: new Date().toISOString(),
       })
@@ -215,7 +215,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
               <Pencil className="mr-2 h-4 w-4" />
               Edit Contact
             </Button>
-            {contact.status !== "reached_out" && contact.status !== "done" && (
+            {contact.status !== "reached-out" && contact.status !== "done" && (
               <Button onClick={handleMarkReachedOut}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Mark Reached Out
@@ -351,7 +351,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
                   <div>
                     <p className="text-muted-foreground">Last Contact</p>
                     <p className="font-medium">
-                      {formatDate(contact.lastContacted)}
+                      {formatDate(contact.lastContact)}
                     </p>
                   </div>
                 </div>

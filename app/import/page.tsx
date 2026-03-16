@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ArrowLeft, Upload, FileSpreadsheet, CheckCircle2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface ParsedContact {
   name: string
@@ -33,6 +34,7 @@ export default function ImportPage() {
   const [importSuccess, setImportSuccess] = useState(false)
   const [fileName, setFileName] = useState("")
   const [importing, setImporting] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     async function checkAuth() {
@@ -80,7 +82,7 @@ export default function ImportPage() {
 
   const handleFile = useCallback((file: File) => {
     if (!file.name.endsWith(".csv")) {
-      alert("Please upload a CSV file")
+      toast({ title: "Invalid file type", description: "Please upload a CSV file.", variant: "destructive" })
       return
     }
 
@@ -122,7 +124,7 @@ export default function ImportPage() {
       linkedin_url: null,
       notes: `Imported from LinkedIn. Connected on: ${pc.connectedOn || "Unknown"}`,
       priority: "medium",
-      status: "to_reach_out",
+      status: "to-reach-out",
       last_contacted: null,
       next_follow_up: null,
     }))
@@ -130,7 +132,7 @@ export default function ImportPage() {
     const { error } = await supabase.from("contacts").insert(contactsToImport)
 
     if (error) {
-      alert("Failed to import contacts: " + error.message)
+      toast({ title: "Import failed", description: error.message, variant: "destructive" })
       setImporting(false)
       return
     }
