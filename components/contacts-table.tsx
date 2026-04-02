@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Contact, Priority, Status, priorityLabels, statusLabels } from "@/lib/data"
 import { PriorityBadge } from "./priority-badge"
 import { StatusBadge } from "./status-badge"
@@ -35,11 +36,11 @@ import { Search, Trash2 } from "lucide-react"
 
 interface ContactsTableProps {
   contacts: Contact[]
-  onEditContact?: (contact: Contact) => void
   onDeleteContact?: (contactId: string) => void
 }
 
-export function ContactsTable({ contacts, onEditContact, onDeleteContact }: ContactsTableProps) {
+export function ContactsTable({ contacts, onDeleteContact }: ContactsTableProps) {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all")
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all")
@@ -145,7 +146,7 @@ export function ContactsTable({ contacts, onEditContact, onDeleteContact }: Cont
                 <TableRow
                   key={contact.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => onEditContact?.(contact)}
+                  onClick={() => router.push(`/contacts/${contact.id}`)}
                 >
                   <TableCell className="font-medium text-foreground">
                     {contact.name}
